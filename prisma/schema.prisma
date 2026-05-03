@@ -1,0 +1,198 @@
+// Ptex Management Dashboard — Prisma schema
+// Switch DB providers by changing the `provider` line below.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+}
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  name         String
+  email        String       @unique
+  password     String
+  role         Role         @default(EMPLOYEE)
+  employeeCode String       @unique
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  timesheets   Timesheet[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
+  misReports   MISReport[]  @relation("MISCreator")
+}
+
+model Client {
+  id         Int         @id @default(autoincrement())
+  clientCode String      @unique
+  clientName String
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+
+  projects   Project[]
+  timesheets Timesheet[]
+}
+
+model Project {
+  id          Int         @id @default(autoincrement())
+  activityId  String      @unique
+  description String
+  clientId    Int
+  client      Client      @relation(fields: [clientId], references: [id])
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  tasks       Task[]
+  timesheets  Timesheet[]
+
+  @@index([clientId])
+}
+
+model Task {
+  id        Int         @id @default(autoincrement())
+  taskId    String
+  taskName  String
+  poRef     String?
+  projectId Int
+  project   Project     @relation(fields: [projectId], references: [id])
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  timesheets Timesheet[]
+
+  @@index([projectId])
+}
+
+model Timesheet {
+  id          Int             @id @default(autoincrement())
+  userId      Int
+  user        User            @relation(fields: [userId], references: [id])
+  clientId    Int
+  client      Client          @relation(fields: [clientId], references: [id])
+  projectId   Int
+  project     Project         @relation(fields: [projectId], references: [id])
+  taskId      Int
+  task        Task            @relation(fields: [taskId], references: [id])
+  date        DateTime
+  weekNo      Int
+  weekLabel   String
+  description String          @db.Text
+  hours       Decimal         @db.Decimal(5, 2)
+  minutes     Int
+  type        String
+
+  sat Decimal @db.Decimal(5, 2) @default(0)
+  sun Decimal @db.Decimal(5, 2) @default(0)
+  mon Decimal @db.Decimal(5, 2) @default(0)
+  tue Decimal @db.Decimal(5, 2) @default(0)
+  wed Decimal @db.Decimal(5, 2) @default(0)
+  thu Decimal @db.Decimal(5, 2) @default(0)
+  fri Decimal @db.Decimal(5, 2) @default(0)
+
+  status        TimesheetStatus @default(DRAFT)
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  rejectionNote String?
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  sandboxEntries SandboxEntry[]
+
+  @@index([userId])
+  @@index([date])
+  @@index([status])
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model SandboxEntry {
+  id           Int        @id @default(autoincrement())
+  originalId   Int?
+  original     Timesheet? @relation(fields: [originalId], references: [id])
+  userId       Int
+  clientId     Int
+  projectId    Int
+  taskId       Int
+  date         DateTime
+  weekNo       Int
+  weekLabel    String
+  description  String     @db.Text
+  hours        Decimal    @db.Decimal(5, 2)
+  minutes      Int
+  type         String
+
+  sat Decimal @db.Decimal(5, 2) @default(0)
+  sun Decimal @db.Decimal(5, 2) @default(0)
+  mon Decimal @db.Decimal(5, 2) @default(0)
+  tue Decimal @db.Decimal(5, 2) @default(0)
+  wed Decimal @db.Decimal(5, 2) @default(0)
+  thu Decimal @db.Decimal(5, 2) @default(0)
+  fri Decimal @db.Decimal(5, 2) @default(0)
+
+  sandboxLabel String
+  isDeleted    Boolean    @default(false)
+  isAdded      Boolean    @default(false)
+  isModified   Boolean    @default(false)
+  managerNote  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([sandboxLabel])
+  @@index([userId])
+}
+
+model MISReport {
+  id           Int      @id @default(autoincrement())
+  title        String
+  periodStart  DateTime
+  periodEnd    DateTime
+  sandboxLabel String?
+  isFinal      Boolean  @default(false)
+  createdById  Int
+  createdBy    User     @relation("MISCreator", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  data         Json
+
+  @@index([createdById])
+  @@index([periodStart, periodEnd])
+}
+
+model Session {
+  id        String   @id
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
